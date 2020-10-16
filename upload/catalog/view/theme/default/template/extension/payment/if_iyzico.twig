@@ -1,0 +1,39 @@
+<form class="form-horizontal">
+  {% if payment_method == 'CHECKOUT_FORM' %}
+    <fieldset id="payment"></fieldset>
+  {% endif %}
+</form>
+<div class="buttons">
+  <div class="pull-right">
+    <input type="button" value="{{ button_confirm }}" id="button-confirm" data-loading-text="{{ text_loading }}" class="btn btn-primary" />
+  </div>
+</div>
+<script type="text/javascript"><!--
+  $('#button-confirm').bind('click', function () {
+    $.ajax({
+      url: 'index.php?route=extension/payment/if_iyzico/send',
+      type: 'post',
+      data: $('#payment :input'),
+      dataType: 'json',
+      beforeSend: function () {
+        $('#button-confirm').attr('disabled', true);
+        $('#payment').before('<div class="alert alert-info"><i class="fa fa-info-circle"></i> {{ text_wait }}</div>');
+      },
+      complete: function () {
+        $('.alert-dismissible').remove();
+        $('#button-confirm').attr('disabled', false);
+      },
+      success: function (json) {
+
+        if (json['error']) {
+          alert('Hata: ' + json['error']);
+        }
+
+        if (json['redirect']) {
+          location = json['redirect'];
+        }
+
+      }
+    });
+  });
+  //--></script>
