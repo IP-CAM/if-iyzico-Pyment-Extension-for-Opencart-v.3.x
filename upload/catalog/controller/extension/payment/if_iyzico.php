@@ -32,14 +32,6 @@ class ControllerExtensionPaymentIfIyzico extends Controller
         $order_info = $this->model_checkout_order->getOrder($this->session->data['order_id']);
         $order_products = $this->model_checkout_order->getOrderProducts($this->session->data['order_id']);
 
-        /*
-        echo json_encode([
-            'order_info'     => $order_info,
-            'order_products' => $order_products
-        ]);
-        die();
-        */
-
         $paymentMethod = $this->config->get('payment_if_iyzico_payment_method');
 
         $items = [];
