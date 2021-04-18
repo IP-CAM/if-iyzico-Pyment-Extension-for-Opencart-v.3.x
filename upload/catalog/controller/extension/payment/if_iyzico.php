@@ -32,6 +32,8 @@ class ControllerExtensionPaymentIfIyzico extends Controller
         $order_info = $this->model_checkout_order->getOrder($this->session->data['order_id']);
         $order_products = $this->model_checkout_order->getOrderProducts($this->session->data['order_id']);
 
+        $orderId = (int)$order_info['order_id'];
+
         $paymentMethod = $this->config->get('payment_if_iyzico_payment_method');
 
         $items = [];
@@ -49,9 +51,9 @@ class ControllerExtensionPaymentIfIyzico extends Controller
 
         $customFields = isset($order_info['custom_field']) ? array_values((array)$order_info['custom_field']) : [];
 
-        $tryIdentityNumber = isset($customFields[0]) ? trim($customFields[0]) : null;
+        $tryIdentityNumber = isset($customFields[0]) ? trim($customFields[0]) : '';
 
-        $identityNumber = count($tryIdentityNumber) === 11 ? $tryIdentityNumber : '11111111111';
+        $identityNumber = strlen($tryIdentityNumber) === 11 ? $tryIdentityNumber : '11111111111';
 
         $paymentZipCode = urlencode(($order_info['payment_iso_code_2'] != 'US') ? $order_info['payment_zone'] : $order_info['payment_zone_code']);
 
@@ -97,7 +99,7 @@ class ControllerExtensionPaymentIfIyzico extends Controller
             'paid_price'      => $order_info['total'],
             'currency'        => $order_info['currency_code'],
             'installment'     => 1,
-            'basket_id'       => (int)$order_info['order_id'],
+            'basket_id'       => $orderId,
             'payment_channel' => 'WEB',
             'payment_group'   => 'PRODUCT',
 
@@ -166,6 +168,9 @@ class ControllerExtensionPaymentIfIyzico extends Controller
             'ok_url'      => urlencode($this->url->link('extension/payment/if_iyzico/callback', ['status' => 'ok'], true)),
             'fail_url'    => urlencode($this->url->link('extension/payment/if_iyzico/callback', ['status' => 'fail'], true)),
             'test'        => ( ! ! $this->config->get('payment_if_iyzico_test')),
+            'extra_info'  => [
+                'order_id' => $orderId
+            ],
             'data'        => $moduleData
         ];
 
@@ -202,7 +207,7 @@ class ControllerExtensionPaymentIfIyzico extends Controller
 
                             if ($validate_response->success) {
 
-                                $this->model_checkout_order->addOrderHistory($this->session->data['order_id'], $this->config->get('payment_if_iyzico_order_status_id'));
+                                $this->model_checkout_order->addOrderHistory($orderId, $this->config->get('payment_if_iyzico_order_status_id'));
 
                                 $this->response->addHeader('Content-Type: application/json');
                                 $this->response->setOutput(json_encode([
@@ -260,20 +265,22 @@ class ControllerExtensionPaymentIfIyzico extends Controller
 
         $status = isset($this->request->get['status']) ? $this->request->get['status'] : null;
 
+        $this->log->write('if_iyzico callback started: ' . $status);
+
         switch ($status) {
 
             case 'ok':
 
+                $this->log->write('if_iyzico callback ok started: ' . var_export($this->request->post, true));
+
                 $transactionId = $this->request->post['transaction_id'];
                 $transactionHash = $this->request->post['transaction_hash'];
-
-                // @todo check order status from backend
-                // $transactionId = $this->request->post['transaction_id'];
-                // $transactionHash = $this->request->post['transaction_hash'];
 
                 $validate_response = $this->validate_transaction($this->config->get('payment_if_iyzico_payment_method'), $transactionId, $transactionHash);
 
                 if ($validate_response === false) {
+
+                    $this->log->write('if_iyzico callback validate hatalı gerçekleşti.');
 
                     $this->session->data['error'] = 'Bilinmeyen bir hata meydana geldi.';
 
@@ -283,11 +290,15 @@ class ControllerExtensionPaymentIfIyzico extends Controller
 
                     if ($validate_response->success) {
 
-                        $this->model_checkout_order->addOrderHistory($this->session->data['order_id'], $this->config->get('payment_if_iyzico_order_status_id'));
+                        $this->log->write('if_iyzico callback validate başarılı oldu: ' . var_export($validate_response, true));
+
+                        $this->model_checkout_order->addOrderHistory($validate_response->extra_info->order_id, $this->config->get('payment_if_iyzico_order_status_id'));
 
                         $this->response->redirect($this->url->link('checkout/success', '', true));
 
                     } else {
+
+                        $this->log->write('if_iyzico callback validate başarısız oldu: ' . var_export($validate_response, true));
 
                         $this->session->data['error'] = isset($validate_response->message) ? $validate_response->message : 'Bilinmeyen bir hata meydana geldi.';
 
@@ -300,6 +311,8 @@ class ControllerExtensionPaymentIfIyzico extends Controller
                 break;
 
             case 'fail':
+
+                $this->log->write('if_iyzico callback fail started: ' . var_export($this->request->post, true));
 
                 $this->session->data['error'] = isset($this->request->post['message']) ? $this->request->post['message'] : 'Bilinmeyen bir hata meydana geldi.';
 
